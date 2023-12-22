@@ -1,6 +1,8 @@
 ###############################
 # UrlBuilder - Build and rebuild URLs
 #
+# NOTE:  Also works without protocol and hostname
+#
 # Usage:
 #
 # Rebuild existing URL
@@ -70,8 +72,11 @@ class UrlBuilder:
     newArgs = {k:v for (k,v) in self.ARGS.items() if k != str(n)}
     self.ARGS = newArgs
   
-  def setAnchor(self,a):
-    self.ANCHOR = a if a[0] == '#' else ("#" + a)
+  def setAnchor(self,a=""):
+    if len(a) > 0:
+      self.ANCHOR = a if a[0] == '#' else ("#" + a)
+    else:
+      self.ANCHOR = a
   
   def __str__(self):
     if self.___validurl():
