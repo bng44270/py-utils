@@ -1,3 +1,5 @@
+# Compatible with datadef.js
+
 from json import dumps as dict2str, loads as str2dict
 from threading import Timer
 from os.path import exists
