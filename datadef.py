@@ -1,212 +1,225 @@
-####################################
-# > class Person(DataCache):
-# ...  def __init__(self,file):
-# ...    # Auto-cache JSON every 10 seconds
-# ...    super().__init__(file,["first_name","last_name","age"],10)
-# 
-# > person = Person('/home/user/person.json')
-# > person.Insert({"first_name":'Andy'})
-# > person.Insert({"first_name":'Jim'})
-# > person.Update(2,{'last_name':'Carlson'})
-# > person.Query([('first_name','Andy')],return_fields=['first_name','age'])
-# [{'first_name': 'Andy', 'age': ''}]
-####################################
-
 from json import dumps as dict2str, loads as str2dict
 from threading import Timer
 from os.path import exists
-from re import match as regex_match
+from re import match as regex_match, compile as str2regex
 
 typeof = lambda v : type(v).__name__
 
-class DataDef:
+class DataDef(list):
   """
+    DataDef (extends Python List object)
+
+    DataTypes:
+
+      DataDef.StringType - string data
+      DataDef.NumberType - numeric data (int or float)
+      DataDef.BooleanType - boolean data
+    
     Usage:
-    
-      # Initialize empty dataset with fields
-      mydata = DataDef(['name','age','email'])
+
+      d = DataDef({"name":DataDef.StringType,"age":DataDef.NumberType,"retired":DataDef.BooleanType})
       
-      # Initialize dataset with custom data record(s)
-      mydata = DataDef(['name','age','email'],[{'name':'Bob','age':12,'email':'bob123@hotmail.com','info':''}])
-      
-    Query syntax for the Query, Update, and Delete methods (denoted as <query-syntax>):
-    
-      [
-        ["field","criteria"],
-        ["field","criteria"],
-        ...
-      ]
-      
-      field - field name
-      criteria - either a string literal or a regex string
   """
-  def __init__(self,fields=[],data = []):
+  StringType = 'string'
+  NumberType = 'number'
+  BooleanType = 'boolean'
+  
+  def __init__(self,fields,data=[]):
+    if not self.__validatefields(fields):
+      raise Exception(f"Invalid schema definition ({str(fields)})")
+    
     self.FIELDS = fields
-    self.PKEY = '_auto_'
-    self.DATA = data
-    self.FIELDS.append(self.PKEY)
-    if len(self.DATA) == 0:
-      self.KEY_AUTO = 1
-    else:
-      self.KEY_AUTO = sorted([a[self.PKEY] for a in self.DATA])[-1]
+    
+    if len(data) > 0:
+      for row in data:
+        self.Insert(row)
   
-  def AddField(self,name=''):
+  def AddField(self,fname,ftype):
     """
-      # Add field to schema of dataset (adds field with empty value to existing records)
-      mydata.AddField('address')
+      # Extend schema by adding type
+      d.AddField("town",DataDef.StringType)
     """
-    if len(name) > 0 and type in ['int','str']:
-      self.FIELDS.append(name)
-      for row in self.DATA:
-        row[name] = ''
-  
-  def Insert(self,row={}):
-    """
-      # Insert new row into dataset
-      mydata.Insert({'name':'Joe','age':23,'email':'joe5@gmail.com','address':'123 street'})
-    """
-    newKey = -1
-    if len([a for a in row.keys() if a in self.FIELDS])  == len(row.keys()):
-      if not self.PKEY in row.keys():
-        newKey = self.KEY_AUTO
-        row[self.PKEY] = self.KEY_AUTO
-        self.KEY_AUTO = self.KEY_AUTO + 1
-      extra = [a for a in self.FIELDS if not a in row.keys()]
-      for blank_field in extra:
-        row[blank_field] = ''
-      self.DATA.append(row)
-    return newKey
+    if not self.__validatefields({fname:ftype}):
+      raise Exception(f"Invalid schema update ({fname}:{ftype})")
+    
+    self.FIELDS[fname] = ftype
+    for row in self:
+      row[fname] = None
   
   def Delete(self,q):
     """
-      # Delete records from dataset matching <query-syntax>
-      mydata.Delete(<query-syntax>)
+      # Delete records where age is 70-79
+      d.Delete([("age","^7[0-9])])
+
+      # Delete records where age is 19
+      d.Delete([("age",19)])
+
+      # Delete records where age is 30 and name starts with "J"
+      d.Delete([("age",30),("name","^J")])
     """
-    self.DATA = [a for a in self.DATA if False in [regex_match(b[1],str(a[b[0]])) or False for b in q]]
-  
-  def Update(self,q,row={}):
-    """
-      # Update records in dataset matching <query-syntax>
-      # <query-syntax> is the first argument
-      # The second argument is a dictionary.  The keys are the field names and the values are the new field values
-      
-      mydata.Update([['email',r'^.*gmail.com$']],{'info':'This is a GMAIL user'})
-    """
-    ids = self.Query(q,return_fields=[self.PKEY])
+    r = [i for (i,v) in enumerate(self) if len([b for b in q if regex_match(str2regex(str(b[1])),str(v[b[0]]))]) == len(q)]
     
-    for update_id in ids:
-      prev = [a for a in self.DATA if a[self.PKEY] == update_id][0]
-      for key in row.keys():
-        prev[key] = row[key]
-      self.Delete([[self.PKEY,update_id]])
-      self.Insert(prev)
+    for thisidx in r:
+      del self[thisidx]
   
-  def Query(self,q,return_fields=[],sort_field='_auto_',decending = False):
+  def Update(self,q,updates=[]):
     """
-      # Query dataset for records matching <query-syntax>
-      # Uses <query-syntax> as the first argument
-      mydata.Query([['name','Bob']])
-      
-      # Query dataset returning certain fields
-      mydata.Query(['name','Bob'],['address'])
-      
-      # Query dataset sorting data by a field (default sort field is the auto id) in decending order
-      mydta.Query(['name','Bob'],sort_field='name',decending = True)
+      # Set retired to True where age is 67-69
+      d.Update([("age","^6[789]")],[("retired",True)])
     """
-    if len(return_fields) == 0:
-      return_fields = self.FIELDS
-    result = [{k:a[k] for k in list(a.keys()) and return_fields} for a in self.DATA if not False in [regex_match(b[1],str(a[b[0]])) or False for b in q]]
-    return sorted(result, key = lambda x : x[sort_field], reverse = decending)
+    r = [i for (i,v) in enumerate(self) if len([b for b in q if regex_match(str2regex(str(b[1])),str(v[b[0]]))]) == len(q)]
+    
+    for thisidx in r:
+      for thisupdate in updates:
+        if not self.__validateupdate(thisupdate):
+          raise Exception(f"Invalid update ({str(thisupdate)})")
+        
+        self[thisidx][thisupdate[0]] = thisupdate[1]          
+  
+  def Query(self,q):
+    """
+      # Query for records where age is between 40 and 59
+      result = d.Query([("age","^[4-5][0-9]")])
+    """
+    if not self.__validatequery(q):
+      raise Exception(f"Invalid query ({str(q)})")
+    
+    result = []
+    
+    r = [i for (i,v) in enumerate(self) if len([b for b in q if regex_match(str2regex(str(b[1])),str(v[b[0]]))]) == len(q)]
+    
+    for thisidx in r:
+      result.append(self[thisidx])
+    
+    return result
+  
+  def Insert(self,row):
+    """
+      # Valid Inserts
+      d.insert({"name":"Bob","age":43,"retired":False})
+      d.insert({"name":"Jim","age":30,"retired":False})
+      d.insert({"name":"Dave","age":71,"retired":True})
+      d.insert({"name":"Joe","age":19})
+
+      # Invalid insert will raise an exception (age must be a number)
+      d.insert({"name":"Zeke","age":"43","retired":False})
+    """
+    if not self.__validaterow(row):
+      raise Exception(f"Invalid insert ({str(row)})")
+    
+    self.append(row)
+  
+  def __jsfieldmap(self,t):
+    return { "float" : "number", "int" : "number", "str" : "string", "bool" : "boolean" }[t]
+  
+  def __validatequery(self,q):
+    for thisquery in q:
+      if not len(thisquery) == 2:
+        return False
+      
+      if not thisquery[0] in self.FIELDS:
+        return False
+    
+    return True
+  
+  def __validateupdate(self,fieldupdate):
+    if not len(fieldupdate) == 2:
+      return False
+    
+    if not self.__validaterow({fieldupdate[0]:fieldupdate[1]}):
+      return False
+    
+    return True
+  
+  def __validaterow(self,row):
+    fields = list(row.keys())
+    
+    for thisfield in fields:
+      if not thisfield in list(self.FIELDS.keys()):
+        return False
+      
+      if not self.FIELDS[thisfield] == self.__jsfieldmap(typeof(row[thisfield])):
+        return False
+    
+    return True
+  
+  def __validatefields(self,fields):
+    types = [DataDef.StringType,DataDef.NumberType,DataDef.BooleanType]
+    
+    fieldnames = list(fields.keys())
+    
+    validfields = [a for a in fieldnames if fields[a] in types]
+    
+    return True if len(validfields) == len(fields) else False
 
 class DataCache(DataDef):
   """
+    DataCache (extends above DataDef object)
+
     Usage:
     
       # Initialize dataset from JSON file
       # NOTE:  DataCache requiring identical fields on each record to accurately detect schema
-      mydata = DataCache('/path/to/people.json')
+      mydata = DataCache({"name":DataDef.StringType,"age":DataDef.NumberType,"retired":DataDef.BooleanType},'/path/to/people.json')
       
-      # Initialize dataset from JSON file configuring automatic writes to the file every 10 seconds
-      mydata = DataCache('/path/to/people.json',10)
-      
-      
-    Query syntax for the Query, Update, and Delete methods (denoted as <query-syntax>):
-    
-      [
-        ["field","criteria"],
-        ["field","criteria"],
-        ...
-      ]
-      
-      field - field name
-      criteria - either a string literal or a regex string
+      # After first initializing data cache with schema, the schema is cached also.
+      # For subsequent executions, the schema can be omitted as follows:
+      mydata = DataCache(file='/path/to/people.json')
+
+      # Caching may also be configured to reoccur after a specified number of seconds
+      # In this example caching occurs every 30 seconds:
+      mydata = DataCache(file='/path/to/people.json',cachetime=30)
   """
-  def __init__(self,file,cachetime=0):
+  def __init__(self,fields=None,file="",cachetime=0):
     self.FILE = file
+    
+    if len(file) == 0:
+      raise Exception("No cache file provided")
     
     if not exists(file):
       with open(file,'w') as f:
         f.write('[]')
     
-    data = str2dict(self.___read_cache())
+    data = str2dict(self.__read_cache())
     
-    fields = self.__detect_schema(data)
-    
-    if typeof(fields) == 'list':
-      super().__init__(fields,data)
+    if not fields:
+      if not exists(f"{file}.schema"):
+        raise Exception(f"Schema file not found ({file}.schema)")
       
-      if (cachetime == 0):
-        self.AUTO_CACHE = False
-      else:
-        self.AUTO_CACHE = True
-        self.CACHE_TIME = cachetime
-        Timer(self.CACHE_TIME,self.Cache).start()
+      with open(f"{file}.schema","r") as f:
+        fields = str2dict(str("".join(f.readlines())))
+    
+    if cachetime == 0:
+      self.AUTO_CACHE = False
     else:
-      raise Exception('Schema mismatch in {} on record {}'.format(file,str(fields + 1)))
+      self.AUTO_CACHE = True
+      self.CACHE_TIME = cachetime
+    
+    super().__init__(fields,data)
+    
+    self.__cacheschema()
+    
+    if not cachetime == 0:
+      Timer(self.CACHE_TIME,self.Cache).start()
+  
+  def AddField(self,fname,ftype):
+    super().AddField(fname,ftype)
+    self.__cacheschema()
   
   def Insert(self,row={}):
-    """
-      # Insert a single row of data.
-      mydata.Insert({'name':'Joe','age':23,'email':'joe5@gmail.com','address':'123 street'})
-    """
     super().Insert(row)
     if not self.AUTO_CACHE:
       self.Cache()
   
   def Delete(self,q):
-    """
-      # Delete records from dataset matching <query-syntax>
-      mydata.Delete(<query-syntax>)
-    """
     super().Delete(q)
     if not self.AUTO_CACHE:
       self.Cache()
   
-  def Update(self,q,row={}):
-    """
-      # Update records in dataset matching <query-syntax>
-      # <query-syntax> is the first argument
-      # The second argument is a dictionary.  The keys are the field names and the values are the new field values
-      
-      mydata.Update([['email',r'^.*gmail.com$']],{'info':'This is a GMAIL user'})
-    """
-    super().Update(id,row)
+  def Update(self,q,updates=[]):
+    super().Update(q,updates)
     if not self.AUTO_CACHE:
       self.Cache()
-  
-  def Query(self,q,return_fields=[],sort_field='_auto_',decending = False):
-    """
-      # Query dataset for records matching <query-syntax>
-      # Uses <query-syntax> as the first argument
-      mydata.Query([['name','Bob']])
-      
-      # Query dataset returning certain fields
-      mydata.Query(['name','Bob'],['address'])
-      
-      # Query dataset sorting data by a field (default sort field is the auto id) in decending order
-      mydta.Query(['name','Bob'],sort_field='name',decending = True)
-    """
-    super().Query(q,return_fields,sort_field,decending)
   
   def Cache(self):
     """
@@ -215,8 +228,8 @@ class DataCache(DataDef):
       
       # If seconds are provided when DataCache is instantiated this function is called automatically
     """
-    filecontent = self.___read_cache()
-    datastring = dict2str(self.DATA)
+    filecontent = self.__read_cache()
+    datastring = dict2str(self)
     if not filecontent == datastring:
       with open(self.FILE,"w") as f:
         f.write(datastring)
@@ -224,17 +237,9 @@ class DataCache(DataDef):
     if self.AUTO_CACHE:
       Timer(self.CACHE_TIME,self.Cache).start()
   
-  def __detect_schema(self,data):
-    badrecord = -1
-    
-    schema = sorted(list(data[0].keys()))
-    
-    for i in range(1,len(data)-1):
-      if not sorted(list(data[i].keys())) == schema:
-        badrecord = i
-        break
-    
-    return schema if badrecord == -1 else badrecord
+  def __cacheschema(self):
+    with open(f"{self.FILE}.schema","w") as f:
+      f.write(dict2str(self.FIELDS))
   
   def __read_cache(self):
     with open(self.FILE,'r') as f:
