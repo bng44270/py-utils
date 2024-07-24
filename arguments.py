@@ -1,7 +1,7 @@
 from re import sub as regex_sub
 from sys import argv as arglist
 
-class Arguments:
+class Arguments(dict):
   """
     Usage:
     
@@ -9,19 +9,18 @@ class Arguments:
       args = Arguments()
   """
   def __init__(self):
-    self.ARGS = {}
     idx = 0
     while idx < len(arglist):
       if arglist[idx].startswith('-'):
         try:
           if arglist[idx+1].startswith('-'):
-            self.ARGS[regex_sub("^-","",arglist[idx])] = True
+            self[regex_sub("^-","",arglist[idx])] = True
             idx += 1
           else:
-            self.ARGS[regex_sub("^-","",arglist[idx])] = arglist[idx+1]
+            self[regex_sub("^-","",arglist[idx])] = arglist[idx+1]
             idx += 2
         except:
-          self.ARGS[regex_sub("^-","",arglist[idx])] = True
+          self[regex_sub("^-","",arglist[idx])] = True
           idx += 1
       else:
         idx += 1
@@ -32,7 +31,7 @@ class Arguments:
       # Returns True if arguments are provided and False if no arguments are provided
       arguments_exist = args.IsArgs()
     """
-    return True if self.ARGS else False
+    return True if len(list(self.keys())) > 0 else False
 		
   def Get(self,arg):
     """
@@ -42,6 +41,6 @@ class Arguments:
       # Boolean False is returned if the argument does not exist
     """
     try:
-      return self.ARGS[arg]
+      return self[arg]
     except:
       return False
