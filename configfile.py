@@ -1,8 +1,10 @@
 from re import sub as regex_sub
 from os import path
 
-class ConfigFile:
+class ConfigFile(dict):
   """
+    ConfigFile - extends Python dict object
+    
     Usage:
     
       # Initialize object with no configuration file (must be configured with Read method)
@@ -18,7 +20,6 @@ class ConfigFile:
     
   """
   def __init__(self,filename=""):    
-    self.CONFIG = {}
     if len(filename) > 0:
       self.FILENAME = filename
       self.Read(filename)
@@ -36,14 +37,16 @@ class ConfigFile:
           if line[0] == '#' or len(line) == 0:
             continue
           else:
-            self.CONFIG.update({regex_sub('^([^ \t]+).*$','\\1',str(line)).strip():regex_sub('^[^ \t]+[ \t]+(.*)$','\\1',str(line)).strip()})
+	          configkey = regex_sub('^([^ \t]+).*$','\\1',str(line)).strip()
+	          configvalue = regex_sub('^[^ \t]+[ \t]+(.*)$','\\1',str(line)).strip()
+	          self.Add(configkey,configvalue)
   
   def IsNew(self):
     """
       # Returns True if the configuration object is empty, False if the object contains data
       is_new_file = conf.IsNew()
     """
-    if self.CONFIG:
+    if len(list(self.keys())) == 0:
       return True
     else:
       return False
@@ -54,29 +57,50 @@ class ConfigFile:
       conf.Write()
     """
     with open(self.FILENAME,"w") as thisfile:
-      for (k,v) in self.CONFIG.items():
-        thisfile.write(k + "\t" + v + "\n")
+      for (k,v) in self.items():
+        if typeof(v) == 'list':
+          for value in v:
+            thisfile.write(f"{k}\t{value}\n")
+        else:
+          thisfile.write(f"{k}\t{v}\n")
   
   def Add(self,key,value):
     """
       # Add a new key/value pair to the configuration file (key = BINPATH, value = /usr/bin)
       conf.Add('BINPATH','/usr/bin')
+
+      # If duplicate keys are found, the single value property is transformed into a list
+      conf.Add('FIELD','name')
+      conf.Add('FIELD','age')
+
+      # conf['FIELD'] resolves to ['name','age']
     """
     if len(key) > 0 and len(value) > 0:
-      self.CONFIG.update({key:value})
-  
+      if key in list(self.keys()):
+        if typeof(self[key]) == 'list':
+          self[key].append(value)
+        else:
+          orig = self[key]
+          self[key] = []
+          self[key].append(orig)
+          self[key].append(value)
+      else:
+        self[key] = value
+    else:
+      raise Exception(f"Invalid key/value pair ({key}:{value})")
+    
   def Get(self,key):
     """
       # Return the value of a provided key
       binary_file_path = conf.Get('BINPATH')
     """
-    if self.CONFIG[key]:
-      return self.CONFIG[key]
+    if self[key]:
+      return self[key]
   
   def Remove(self,key):
     """
       # Remove an existing key from the object
       conf.Remove('BINPATH')
     """
-    if self.CONFIG[key]:
-      del self.CONFIG[key]
+    if self[key]:
+      del self[key]
