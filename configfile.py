@@ -1,6 +1,8 @@
 from re import sub as regex_sub
 from os import path
 
+typeof = lambda x : type(x).__name__
+
 class ConfigFile(dict):
   """
     ConfigFile - extends Python dict object
