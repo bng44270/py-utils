@@ -13,7 +13,7 @@ class PyIFTTT:
     else:
       raise ValueError('IFTTT Webhook key not provided')
   
-  def Send(endpoint_id,valueOne, valueTwo="", valueThree=""):
+  def Run(endpoint_id,valueOne, valueTwo="", valueThree=""):
     """
       # Send Webhook Request using webhook name and a single value
       myifttt.Send("tweekhook","value-1-text")
