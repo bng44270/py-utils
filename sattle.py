@@ -66,14 +66,25 @@ class SatTle(list):
   def __parsetitle(self,s):
     tle_title_pattern = r'^(?P<title>.+)$'
     title = regex_match(tle_title_pattern,s)
-    return title['title'].strip() if title else False
+    
+    if not title:
+      raise Exception("Invalid TLE line")
+    
+    return title['title'].strip()
   
   def __parseline1(self,s):
     tle_line1_pattern = r'^.[ \t]+(?P<satcat>.....)(?P<classification>.)[ \t]+(?P<launch_year>..)(?P<launch_number>...)(?P<piece_of_launch>...)[ \t]+(?P<epoch_year>..)(?P<epoch_day>............)[ \t]+(?P<first_derivative>..........)[ \t]+(?P<second_derivative>........)[ \t]+(?P<drag_term>........)[ \t]+(?P<ephemeris_type>.)[ \t]+(?P<set_number>....)(?P<checksum>.)$'
     line1 = regex_match(tle_line1_pattern,s)
-    return line1.groupdict() if line1 else False
+    if not line1:
+      raise Exception("Invalid TLE line")
+    
+    return line1.groupdict()
   
   def __parseline2(self,s):
     tle_line2_pattern = r'^.[ \t]+(?P<satcat>.....)[ \t]+(?P<inclination>........)[ \t]+(?P<right_ascension>........)[ \t]+(?P<eccentricity>.......)[ \t]+(?P<argument_of_perigee>........)[ \t]+(?P<mean_anomoly>........)[ \t]+(?P<mean_motion>...........)(?P<revolution>.....)(?P<checksum>.)$'
     line2 = regex_match(tle_line2_pattern,s)
-    return line2.groupdict() if line2 else False
+    
+    if not line2:
+      raise Exception("Invalid TLE line")
+    
+    return line2.groupdict()
