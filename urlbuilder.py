@@ -43,66 +43,50 @@
 #
 ###############################
 import re
-from urllib.parse import unquote as url_decode
+from urllib.parse import unquote as url_decode, quote as url_encode
 
-class UrlBuilder:
+class UrlBuilder(dict):
   def __init__(self,url=None):
-    self.PROTO = ""
-    self.HOST = ""
-    self.PATH = ""
-    self.ARGS = {}
-    self.ANCHOR = ""
-
+    self['protocol'] = ""
+    self['host'] = ""
+    self['path'] = ""
+    self['params'] = {}
+    self['anchor'] = ""
+    
     if url:
       self.___parseurl(url)
   
-  def setProtocol(self,p):
-    self.PROTO = p
-  
-  def setHost(self,h):
-    self.HOST = h
-  
-  def setPath(self,p):
-    self.PATH = p
-  
-  def addArgument(self,n,v):
-    self.ARGS[str(n)] = str(v)
-  
-  def removeArgument(self,n):
-    newArgs = {k:v for (k,v) in self.ARGS.items() if k != str(n)}
-    self.ARGS = newArgs
-  
-  def setAnchor(self,a=""):
-    if len(a) > 0:
-      self.ANCHOR = a if a[0] == '#' else ("#" + a)
-    else:
-      self.ANCHOR = a
-  
   def __str__(self):
     if self.___validurl():
-      args = ("?" + "&".join([f"{k}={v}" for (k,v) in self.ARGS.items()])) if len(self.ARGS.items()) > 0 else ""
-      url = f"{self.PROTO}://{self.HOST}{self.PATH}{args}{self.ANCHOR}"
+      args = ("?" + "&".join([f"{k}={url_encode(v)}" for (k,v) in self['params'].items()])) if len(self['params'].items()) > 0 else ""
+      url = f"{self['protocol']}://{self['host']}{self['path']}{args}{self['anchor']}"
       return url
     elif self.___validpath():
-      args = ("?" + "&".join([f"{k}={v}" for (k,v) in self.ARGS.items()])) if len(self.ARGS.items()) > 0 else ""
-      url = f"{self.PATH}{args}{self.ANCHOR}"
+      args = ("?" + "&".join([f"{k}={url_encode(v)}" for (k,v) in self['params'].items()])) if len(self['params'].items()) > 0 else ""
+      url = f"{self['path']}{args}{self['anchor']}"
+      return url
+    elif self.__validhost():
+      url = f"{self['protocol']}://{self['host']}/"
       return url
     else:
       return ""
   
   def ___validpath(self):
-    return (len(self.PATH) > 0)
+    return (len(self['path']) > 0)
   
   def ___validurl(self):
-    return (len(self.PROTO) > 0 and len(self.HOST) > 0 and len(self.PATH) > 0)
+    return (len(self['protocol']) > 0 and len(self['host']) > 0 and len(self['path']) > 0)
+  
+  def __validhost(self):
+    return (len(self['protocol']) > 0 and len(self['host']) > 0)
   
   def ___parseurl(self,url):
     # check for protocol, hostname, and path (required)
     urlmatch = re.match(r"^(?P<protocol>[^:]+):\/\/(?P<hostname>[^\/]+)(?P<path>[^?]+)",url)
     if urlmatch:
-      self.PROTO = urlmatch.group("protocol")
-      self.HOST = urlmatch.group("hostname")
-      self.PATH = urlmatch.group("path")
+      self['protocol'] = urlmatch.group("protocol")
+      self['host'] = urlmatch.group("hostname")
+      self['path'] = urlmatch.group("path")
     
       argmatch = re.match("^[^:]+:\/\/[^\/]+[^?]+(?P<args>[?][^#]+)",url)
       
@@ -112,7 +96,7 @@ class UrlBuilder:
         if len(argstr):
           argname = [a.split("=")[0] for a in re.sub(r"^\?","",argmatch.group("args")).split("&")]
           argval = [url_decode(a.split("=")[1]) for a in re.sub(r"^\?","",argmatch.group("args")).split("&")]
-          self.ARGS = {k:v for (k,v) in zip(argname,argval)}
+          self['params'] = {k:v for (k,v) in zip(argname,argval)}
       
       anchormatch = re.match(r"^[^:]+:\/\/[^\/]+[^?]+\?[^#]+(?P<anchor>#.*)$",url)
       
@@ -133,10 +117,10 @@ class UrlBuilder:
           if len(argstr):
             argname = [a.split("=")[0] for a in re.sub(r"^\?","",argmatch.group("args")).split("&")]
             argval = [url_decode(a.split("=")[1]) for a in re.sub(r"^\?","",argmatch.group("args")).split("&")]
-            self.ARGS = {k:v for (k,v) in zip(argname,argval)}
+            self['params'] = {k:v for (k,v) in zip(argname,argval)}
         
         anchormatch = re.match(r"^\/[^?]+\?[^#]+(?P<anchor>#.*)$",url)
         
         # check for anchor (optional)
         if anchormatch:
-          self.ANCHOR = anchormatch.group("anchor")
+          self['anchor'] = anchormatch.group("anchor")
